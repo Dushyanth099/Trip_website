@@ -7,7 +7,11 @@ const bookingSchema = new mongoose.Schema({
   arrival: Date,
   departure: Date,
   details: String,
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: false,
+  }, // No user reference required
   createdAt: { type: Date, default: Date.now },
 });
 

@@ -3,97 +3,73 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+require("dotenv").config();
 
 const app = express();
+const router = express.Router();
+
+// Models
+const User = require("./models/User");
+const Booking = require("./models/Bookings");
+
+// Constants
+const JWT_SECRET = process.env.JWT_SECRET;
+
+// Middleware
 app.use(express.json());
 app.use(cors());
-
-// Import models
-const User = require("./models/User");
-const Booking = require("./models/Bookings"); // Correctly import the Booking model
+app.use(
+  cors({
+    origin: "http://localhost:3000", // Allow requests from React front-end
+  })
+);
 
 // Connect to MongoDB
-mongoose.connect("mongodb://localhost:27017/tour-booking", {
- 
-});
+mongoose
+  .connect("mongodb://localhost:27017/tour-booking", {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log("Connected to MongoDB"))
+  .catch((error) => console.error("Failed to connect to MongoDB:", error));
 
-// Middleware to protect routes
-const protect = (req, res, next) => {
-  let token = req.headers.authorization;
+// Booking Routes
+router.post("/bookings", async (req, res) => {
+  const { destination, people, arrival, departure, details } = req.body;
 
-  if (!token) {
-    return res.status(401).send({ error: "No token, authorization denied" });
+  if (!destination || !people || !arrival || !departure) {
+    return res
+      .status(400)
+      .json({ success: false, message: "All fields are required" });
   }
 
-  token = token.split(" ")[1]; // Extract token from "Bearer <token>"
-
   try {
-    const decoded = jwt.verify(token, "your_jwt_secret");
-    req.user = decoded.userId;
-    next();
-  } catch (error) {
-    res.status(401).send({ error: "Token is not valid" });
-  }
-};
-
-// API to handle booking submissions (protected route)
-app.post("/api/bookings", protect, async (req, res) => {
-  try {
-    const booking = new Booking({ ...req.body, userId: req.user });
-    await booking.save();
-    res.status(201).send({ message: "Booking saved successfully" });
-  } catch (error) {
-    res.status(500).send({ error: "Failed to save booking" });
-  }
-});
-
-// API to fetch bookings (for the user, protected route)
-app.get("/api/bookings", protect, async (req, res) => {
-  try {
-    const bookings = await Booking.find({ userId: req.user });
-    res.status(200).send(bookings);
-  } catch (error) {
-    res.status(500).send({ error: "Failed to fetch bookings" });
-  }
-});
-
-// Register route
-app.post("/api/register", async (req, res) => {
-  const { username, email, password } = req.body;
-
-  try {
-    const userExists = await User.findOne({ email });
-    if (userExists)
-      return res.status(400).send({ error: "User already exists" });
-
-    const user = new User({ username, email, password });
-    await user.save();
-    res.status(201).send({ message: "User registered successfully" });
-  } catch (error) {
-    res.status(500).send({ error: "Failed to register user" });
-  }
-});
-
-// Login route
-app.post("/api/login", async (req, res) => {
-  const { email, password } = req.body;
-
-  try {
-    const user = await User.findOne({ email });
-    if (!user) return res.status(400).send({ error: "Invalid credentials" });
-
-    const isPasswordValid = await user.matchPassword(password);
-    if (!isPasswordValid)
-      return res.status(400).send({ error: "Invalid credentials" });
-
-    const token = jwt.sign({ userId: user._id }, "your_jwt_secret", {
-      expiresIn: "1h",
+    const newBooking = new Booking({
+      destination,
+      people,
+      arrival,
+      departure,
+      details,
+      userId: null,
     });
-    res.status(200).send({ token });
+
+    await newBooking.save();
+    res
+      .status(201)
+      .json({ success: true, message: "Booking successfully created!" });
   } catch (error) {
-    res.status(500).send({ error: "Failed to login" });
+    console.error("Error creating booking:", error);
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Failed to create booking. Please try again.",
+      });
   }
 });
+
+// Mount the router
+app.use("/api", router);
 
 // Start the server
 app.listen(5000, () => {
